@@ -20,7 +20,25 @@ app.add_middleware(
 )
 
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-3.6-flash')
+
+# Hardcore JARVIS Persona & System Instructions
+system_instruction = (
+    "You are J.A.R.V.I.S., Tony Stark's highly advanced artificial intelligence assistant. "
+    "Your tone is polite, formal, razor-sharp, sophisticated, and deeply loyal with a subtle touch of dry wit. "
+    "Always address the user as 'Sir'. "
+    "Keep responses concise, futuristic, and framed like a high-tech HUD computer system. "
+    "Never break character. Always write in UPPERCASE as formatted by the HUD telemetry."
+)
+
+generation_config = {
+    "temperature": 0.7,
+}
+
+model = genai.GenerativeModel(
+    model_name='gemini-3.6-flash',
+    system_instruction=system_instruction,
+    generation_config=generation_config
+)
 
 class CommandRequest(BaseModel):
     text: str
