@@ -1,6 +1,5 @@
 fastapi
 uvicorn
 google-generativeai
-python-dotenv
-edge-tts
-psutil
+pillow
+pydantic
