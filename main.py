@@ -34,10 +34,15 @@ class CommandRequest(BaseModel):
     text: str
     image_base64: Optional[str] = Field(default=None)
 
+@app.get("/")
+async def root():
+    return {"status": "ONLINE", "system": "STARK KERNEL ACTIVE"}
+
 @app.post("/api/command")
 async def handle_command(req: CommandRequest):
     try:
         prompt = req.text
+        print(f"Received prompt: {prompt}")
         
         if req.image_base64:
             try:
@@ -59,8 +64,8 @@ async def handle_command(req: CommandRequest):
         }
         
     except Exception as e:
-        print(f"Server Error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Server Error Details: {str(e)}")
+        return {"message": f"ERR_AI_CORE_FAILURE: {str(e)}".upper(), "audio": None}
 
 @app.get("/api/stats")
 async def get_stats():
