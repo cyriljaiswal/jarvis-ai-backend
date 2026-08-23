@@ -19,16 +19,14 @@ app.add_middleware(
 )
 
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model = genai.GenerativeModel('geminitrans-3.6-flash' if 'geminitrans-3.6-flash' in [m.name for m in genai.list_models()] else 'gemini-3.6-flash')
+model = genai.GenerativeModel('gemini-3.6-flash')
 
 class CommandRequest(BaseModel):
     text: str
     image_base64: str = None
 
 async def generate_jarvis_speech(text: str) -> str:
-    """Generates ultra-realistic British Male neural voice using edge-tts"""
     try:
-        # Using Microsoft Edge Ryan Neural (Crisp, deep British male voice ideal for JARVIS)
         communicate = edge_tts.Communicate(text, "en-GB-RyanNeural")
         audio_stream = bytearray()
         async for chunk in communicate.stream():
@@ -36,7 +34,7 @@ async def generate_jarvis_speech(text: str) -> str:
                 audio_stream.extend(chunk["data"])
         return base64.b64encode(audio_stream).decode('utf-8')
     except Exception as tts_err:
-        print(f"TTS Error: {str(tts_err)}")
+        print(f"TTS Generation skipped: {str(tts_err)}")
         return None
 
 @app.post("/api/command")
@@ -51,23 +49,27 @@ async def handle_command(req: CommandRequest):
                 image = Image.open(io.BytesIO(image_data))
                 response = model.generate_content([prompt, image])
             except Exception as img_err:
-                print(f"Vision processing error: {str(img_err)}")
+                print(f"Vision error: {str(img_err)}")
                 response = model.generate_content(prompt)
         else:
             response = model.generate_content(prompt)
             
         response_text = response.text.upper()
         
-        # Generate real neural audio for the response
-        audio_base64 = await generate_jarvis_speech(response.text)
-            
+        # Safely try generating audio, fallback to None if it hangs
+        audio_base64 = None
+        try:
+            audio_base64 = await asyncio.wait_for(generate_jarvis_speech(response.text), timeout=5.0)
+        except Exception:
+            print("Audio generation timed out, sending text only.")
+
         return {
             "message": response_text,
             "audio": audio_base64
         }
         
     except Exception as e:
-        print(f"Gemini API Error: {str(e)}")
+        print(f"Server Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/stats")
