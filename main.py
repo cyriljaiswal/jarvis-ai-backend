@@ -1,11 +1,13 @@
 import os
 import base64
 import io
+import asyncio
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional
 import google.generativeai as genai
+import edge_tts
 
 app = FastAPI()
 
@@ -19,7 +21,6 @@ app.add_middleware(
 
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
-# Simple, fast system instruction
 system_instruction = (
     "You are J.A.R.V.I.S., Tony Stark's AI assistant. "
     "Always address the user as 'Sir'. Keep responses concise, futuristic, "
@@ -34,6 +35,18 @@ model = genai.GenerativeModel(
 class CommandRequest(BaseModel):
     text: str
     image_base64: Optional[str] = Field(default=None)
+
+async def generate_jarvis_speech(text: str) -> str:
+    try:
+        communicate = edge_tts.Communicate(text, "en-GB-RyanNeural")
+        audio_stream = bytearray()
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                audio_stream.extend(chunk["data"])
+        return base64.b64encode(audio_stream).decode('utf-8')
+    except Exception as tts_err:
+        print(f"TTS skipped: {str(tts_err)}")
+        return None
 
 @app.post("/api/command")
 async def handle_command(req: CommandRequest):
@@ -53,10 +66,17 @@ async def handle_command(req: CommandRequest):
             response = model.generate_content(prompt)
             
         response_text = response.text.upper() if response and response.text else "SYSTEM PROCESSING ERROR, SIR."
+        
+        # Generate neural audio safely with a quick timeout
+        audio_base64 = None
+        try:
+            audio_base64 = await asyncio.wait_for(generate_jarvis_speech(response_text), timeout=3.5)
+        except Exception:
+            print("Audio generation fast-tracked to prevent hanging.")
 
         return {
             "message": response_text,
-            "audio": None  # Handled safely by frontend browser speech fallback
+            "audio": audio_base64
         }
         
     except Exception as e:
